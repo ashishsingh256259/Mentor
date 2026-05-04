@@ -3345,6 +3345,7 @@ const sendMessage = async () => {
     role: "user",
     content: input,
   };
+}
 
   setMessages(prev => [...prev, userMsg]);
 
