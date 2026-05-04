@@ -1,3 +1,106 @@
+// Razorpay Checkout script loader
+function loadRazorpayScript(src) {
+    return new Promise((resolve) => {
+        const script = document.createElement("script");
+        script.src = src;
+        script.onload = () => resolve(true);
+        script.onerror = () => resolve(false);
+        document.body.appendChild(script);
+    });
+}
+
+// Razorpay constants
+const RAZORPAY_KEY_ID = process.env.REACT_APP_RAZORPAY_KEY_ID;
+
+// Razorpay Checkout Button Component
+function RazorpayCheckoutButton({ amount = 10000, currency = "INR", label = "Pay with Razorpay" }) {
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState("");
+    const [success, setSuccess] = useState("");
+
+    const handlePayment = async () => {
+        setError("");
+        setSuccess("");
+        setLoading(true);
+        // 1. Load Razorpay script
+        const loaded = await loadRazorpayScript("https://checkout.razorpay.com/v1/checkout.js");
+        if (!loaded) {
+            setError("Failed to load Razorpay SDK. Check your connection.");
+            setLoading(false);
+            return;
+        }
+        // 2. Create order on backend
+        let orderData;
+        try {
+            const res = await fetch("/api/create-order", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ amount, currency })
+            });
+            orderData = await res.json();
+            if (!res.ok) throw new Error(orderData.error || "Order creation failed");
+        } catch (err) {
+            setError("Order creation failed: " + err.message);
+            setLoading(false);
+            return;
+        }
+        // 3. Open Razorpay modal
+        const options = {
+            key: RAZORPAY_KEY_ID,
+            amount: orderData.amount,
+            currency: orderData.currency,
+            order_id: orderData.order_id,
+            name: "Mentor App Payment",
+            description: "Test Transaction",
+            handler: async function (response) {
+                // 4. Verify payment signature
+                try {
+                    const verifyRes = await fetch("/api/verify-payment", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            razorpay_order_id: response.razorpay_order_id,
+                            razorpay_payment_id: response.razorpay_payment_id,
+                            razorpay_signature: response.razorpay_signature
+                        })
+                    });
+                    const verifyData = await verifyRes.json();
+                    if (verifyRes.ok && verifyData.success) {
+                        setSuccess("Payment successful and verified!");
+                    } else {
+                        setError("Payment verification failed: " + (verifyData.error || "Unknown error"));
+                    }
+                } catch (err) {
+                    setError("Payment verification error: " + err.message);
+                }
+                setLoading(false);
+            },
+            modal: {
+                ondismiss: function () {
+                    setError("Payment popup closed. No payment made.");
+                    setLoading(false);
+                }
+            },
+            theme: { color: "#F59E0B" }
+        };
+        const rzp = new window.Razorpay(options);
+        rzp.on("payment.failed", function (response) {
+            setError("Payment failed: " + response.error.description);
+            setLoading(false);
+        });
+        rzp.open();
+    };
+
+    return (
+        <div style={{ margin: "32px 0" }}>
+            <button className="btn-primary" onClick={handlePayment} disabled={loading}>
+                {loading ? "Processing..." : label}
+            </button>
+            {error && <div style={{ color: "#EF4444", marginTop: 12 }}>{error}</div>}
+            {success && <div style={{ color: "#10B981", marginTop: 12 }}>{success}</div>}
+        </div>
+    );
+}
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 
 // ─── GLOBAL CSS ──────────────────────────────────────────────────────────────
@@ -2671,6 +2774,11 @@ export default function App() {
         <div style={{ minHeight: "100vh", background: "var(--bg)", color: "var(--text)", fontFamily: "var(--font-body)" }}>
             <style>{GLOBAL_CSS}</style>
             <GlowBg />
+
+            {/* Razorpay Demo Button - Remove or move as needed */}
+            <div style={{ display: "flex", justifyContent: "center" }}>
+              <RazorpayCheckoutButton amount={10000} label="Pay ₹100" />
+            </div>
 
             {showUpgrade && <UpgradeModal onClose={() => setShowUpgrade(false)} onUpgrade={() => setPlan("pro")} />}
 

@@ -10,6 +10,9 @@ const express = require("express");
 const cors = require("cors");
 const axios = require("axios");
 
+const Razorpay = require("razorpay");
+const crypto = require("crypto");
+
 const app = express();
 
 const mongoose = require("mongoose");
@@ -21,9 +24,54 @@ mongoose.connect(process.env.MONGO_URI)
 app.use(cors());
 app.use(express.json());
 
+// Initialize Razorpay instance
+const razorpay = new Razorpay({
+  key_id: process.env.RAZORPAY_KEY_ID,
+  key_secret: process.env.RAZORPAY_KEY_SECRET
+});
+
 // TEST ROUTE
 app.get("/", (req, res) => {
   res.send("Backend working ✅");
+});
+
+// RAZORPAY: Create Order
+app.post("/api/create-order", async (req, res) => {
+  try {
+    const { amount, currency = "INR", receipt } = req.body;
+    if (!amount || amount < 100) {
+      return res.status(400).json({ error: "Amount must be at least 100 paise (₹1)" });
+    }
+    const options = {
+      amount: Math.floor(amount), // amount in paise
+      currency,
+      receipt: receipt || `rcpt_${Date.now()}`
+    };
+    const order = await razorpay.orders.create(options);
+    res.json({ order_id: order.id, amount: order.amount, currency: order.currency });
+  } catch (err) {
+    if (err.statusCode === 401) {
+      return res.status(401).json({ error: "Razorpay authentication failed" });
+    }
+    console.error("Razorpay Order Error:", err);
+    res.status(500).json({ error: "Failed to create order", details: err.error || err.message });
+  }
+});
+
+// RAZORPAY: Verify Payment Signature
+app.post("/api/verify-payment", (req, res) => {
+  const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
+  if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+    return res.status(400).json({ error: "Missing required fields" });
+  }
+  const hmac = crypto.createHmac("sha256", process.env.RAZORPAY_KEY_SECRET);
+  hmac.update(razorpay_order_id + "|" + razorpay_payment_id);
+  const generatedSignature = hmac.digest("hex");
+  if (generatedSignature === razorpay_signature) {
+    return res.json({ success: true, message: "Payment verified" });
+  } else {
+    return res.status(400).json({ success: false, error: "Signature mismatch" });
+  }
 });
 
 // MAIN CHAT ROUTE
