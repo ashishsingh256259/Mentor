@@ -1,3 +1,4 @@
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 // Razorpay Checkout script loader
 function loadRazorpayScript(src) {
     return new Promise((resolve) => {
@@ -101,7 +102,7 @@ function RazorpayCheckoutButton({ amount = 10000, currency = "INR", label = "Pay
         </div>
     );
 }
-import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+
 
 // ─── GLOBAL CSS ──────────────────────────────────────────────────────────────
 const GLOBAL_CSS = `
@@ -2717,6 +2718,7 @@ export default function App() {
     const [chatOpen, setChatOpen] = useState(false);
     const [plan, setPlan] = useState("free");
     const [showUpgrade, setShowUpgrade] = useState(false);
+
 
     useEffect(() => {
         // Check for existing session
