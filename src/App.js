@@ -2071,30 +2071,7 @@ try {
     score: 75,
     feedback: "Great effort!"
   });
-} finally {
-  setSubmitting(false);
 }
-    try {
-      const clean = reply.replace(/```json|```/g, "").trim();
-      const parsed = JSON.parse(clean);
-      setResult(parsed);
-      if (parsed.passed) {
-        const newStreak = user.lastActiveDate === new Date(Date.now() - 86400000).toDateString() ? streak + 1 : 1;
-        setUser(u => ({
-          ...u,
-          xp: (u.xp || 0) + (parsed.xp_awarded || activeChallenge.xp),
-          streak: newStreak,
-          lastActiveDate: todayKey,
-          dailyChallengeCompleted: todayKey,
-          completedChallenges: [...(u.completedChallenges || []), activeChallenge.id],
-        }));
-      }
-    } catch {
-      setResult({ passed: true, score: 75, feedback: "Great effort! Your submission shows solid understanding of the challenge.", xp_awarded: activeChallenge.xp });
-    }
-    setSubmitting(false);
-  }
-
   return (
     <div style={{ padding: "80px 24px 40px", maxWidth: 760, margin: "0 auto", animation: "fadeUp 0.4s ease" }}>
       <span className="tag" style={{ background: "rgba(245,158,11,0.08)", color: "var(--amber)", border: "1px solid rgba(245,158,11,0.25)", marginBottom: 20 }}>🔥 Daily Challenge</span>
@@ -2495,6 +2472,7 @@ try {
       messages: history
     }),
   });
+
   if (!res.ok) throw new Error("API failed");
 
   const data = await res.json();
@@ -2508,9 +2486,6 @@ try {
 } finally {
   setLoading(false);
 }
-    setMessages(m => [...m, { role: "assistant", content: reply }]);
-    setLoading(false);
-  }
 
   const quickPrompts = [
     `What should I learn first for ${role.title}?`,
