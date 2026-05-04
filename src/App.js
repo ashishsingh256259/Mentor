@@ -550,7 +550,7 @@ async function askClaude(messages, systemPrompt = "", maxTokens = 1000) {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-                model: "claude-sonnet-4-20250514",
+                model: "claude-sonnet-6-",
                 max_tokens: maxTokens,
                 system: systemPrompt,
                 messages,
@@ -2052,7 +2052,7 @@ function PageResources({ user, selectedCareerPath }) {
 [{"title":"Resource Name","url":"https://...","why":"one sentence why perfect for this person"}]`;
         const prompt = `Student targeting ${role.title} (${role.category}). Missing skills: ${skillGaps.join(", ") || role.skills_needed.join(", ")}. Recommend 3 specific free resources.`;
         try {
-            const res = await fetch("https://api.anthropic.com/v1/messages", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 600, system: sys, messages: [{ role: "user", content: prompt }] }) });
+            const res = await fetch("https://mentor-w7xg.onrender.com/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ model: "claude-sonnet-6-", max_tokens: 400, system: sys, messages: [{ role: "user", content: prompt }] }) });
             const data = await res.json();
             const text = data.content?.[0]?.text || "[]";
             setAiPicks(JSON.parse(text.replace(/```json|```/g, "").trim()));
