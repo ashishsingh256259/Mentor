@@ -324,54 +324,41 @@ function getProjects(roleId) {
 // ─── COURSES DB ──────────────────────────────────────────────────────────────
 const COURSES_DB = {
     "ai-engineer": [
-        { id: "c1", title: "DeepLearning.AI TensorFlow Developer", platform: "Coursera", tags: ["Beginner", "Certification"], roi: 95, icon: "🧠", duration: "4 months", link: "https://www.coursera.org/professional-certificates/tensorflow-in-practice" },
-        { id: "c2", title: "Practical Deep Learning for Coders", platform: "Fast.ai", tags: ["Advanced", "Hands-on"], roi: 98, icon: "⚡", duration: "8 weeks", link: "https://course.fast.ai/" },
-        { id: "c3", title: "MLOps Specialization", platform: "Coursera", tags: ["Advanced", "Deployment"], roi: 90, icon: "⚙️", duration: "3 months", link: "https://www.coursera.org/specializations/machine-learning-engineering-for-production-mlops" }
+        { id: "c1", title: "DeepLearning.AI TensorFlow Developer", platform: "Coursera", tags: ["Beginner", "Certification"], roi: 95, icon: "🧠", duration: "4 months", url: "#" },
+        { id: "c2", title: "Practical Deep Learning for Coders", platform: "Fast.ai", tags: ["Advanced", "Hands-on"], roi: 98, icon: "⚡", duration: "8 weeks", url: "#" },
+        { id: "c3", title: "MLOps Specialization", platform: "Coursera", tags: ["Advanced", "Deployment"], roi: 90, icon: "⚙️", duration: "3 months", url: "#" }
     ],
     "fullstack-dev": [
-        { id: "c1", title: "The Odin Project - Full Stack JavaScript", platform: "Open Source", tags: ["Beginner", "Project-based"], roi: 99, icon: "🌐", duration: "6 months", link: "https://www.theodinproject.com/" },
-        { id: "c2", title: "Epic React by Kent C. Dodds", platform: "EpicReact", tags: ["Advanced", "React"], roi: 94, icon: "⚛️", duration: "4 weeks", link: "https://epicreact.dev/" },
-        { id: "c3", title: "Backend Engineering with Node.js", platform: "Frontend Masters", tags: ["Intermediate", "Backend"], roi: 92, icon: "💻", duration: "6 weeks", link: "https://frontendmasters.com/courses/node-js-v3/" }
+        { id: "c1", title: "The Odin Project - Full Stack JavaScript", platform: "Open Source", tags: ["Beginner", "Project-based"], roi: 99, icon: "🌐", duration: "6 months", url: "#" },
+        { id: "c2", title: "Epic React by Kent C. Dodds", platform: "EpicReact", tags: ["Advanced", "React"], roi: 94, icon: "⚛️", duration: "4 weeks", url: "#" },
+        { id: "c3", title: "Backend Engineering with Node.js", platform: "Frontend Masters", tags: ["Intermediate", "Backend"], roi: 92, icon: "💻", duration: "6 weeks", url: "#" }
     ],
     "data-analyst": [
-        { id: "c1", title: "Google Data Analytics Professional Certificate", platform: "Coursera", tags: ["Beginner", "Certification"], roi: 96, icon: "📊", duration: "6 months", link: "https://www.coursera.org/professional-certificates/google-data-analytics" },
-        { id: "c2", title: "SQL for Data Science", platform: "Coursera", tags: ["Intermediate", "SQL"], roi: 95, icon: "💾", duration: "4 weeks", link: "https://www.coursera.org/learn/sql-for-data-science" },
-        { id: "c3", title: "Data Visualization with Tableau", platform: "DataCamp", tags: ["Intermediate", "Tableau"], roi: 90, icon: "📈", duration: "3 weeks", link: "https://www.datacamp.com/courses/introduction-to-tableau" }
+        { id: "c1", title: "Google Data Analytics Professional Certificate", platform: "Coursera", tags: ["Beginner", "Certification"], roi: 96, icon: "📊", duration: "6 months", url: "#" },
+        { id: "c2", title: "SQL for Data Science", platform: "Coursera", tags: ["Intermediate", "SQL"], roi: 95, icon: "💾", duration: "4 weeks", url: "#" },
+        { id: "c3", title: "Data Visualization with Tableau", platform: "DataCamp", tags: ["Intermediate", "Tableau"], roi: 90, icon: "📈", duration: "3 weeks", url: "#" }
     ],
     "ux-designer": [
-        { id: "c1", title: "Google UX Design Professional Certificate", platform: "Coursera", tags: ["Beginner", "Certification"], roi: 95, icon: "🎨", duration: "6 months", link: "https://www.coursera.org/professional-certificates/google-ux-design" },
-        { id: "c2", title: "Shift Nudge - Interface Design", platform: "Shift Nudge", tags: ["Advanced", "Visual Design"], roi: 92, icon: "📐", duration: "8 weeks", link: "https://shiftnudge.com/" },
-        { id: "c3", title: "UX Research Methods", platform: "Interaction Design Foundation", tags: ["Intermediate", "Research"], roi: 88, icon: "🔬", duration: "5 weeks", link: "https://www.interaction-design.org/courses/user-research-methods-and-best-practices" }
+        { id: "c1", title: "Google UX Design Professional Certificate", platform: "Coursera", tags: ["Beginner", "Certification"], roi: 95, icon: "🎨", duration: "6 months", url: "#" },
+        { id: "c2", title: "Shift Nudge - Interface Design", platform: "Shift Nudge", tags: ["Advanced", "Visual Design"], roi: 92, icon: "📐", duration: "8 weeks", url: "#" },
+        { id: "c3", title: "UX Research Methods", platform: "Interaction Design Foundation", tags: ["Intermediate", "Research"], roi: 88, icon: "🔬", duration: "5 weeks", url: "#" }
     ],
     "digital-marketer": [
-        { id: "c1", title: "Google Digital Garage - Fundamentals of Digital Marketing", platform: "Google", tags: ["Beginner", "Certification"], roi: 97, icon: "📈", duration: "40 hours", link: "https://learndigital.withgoogle.com/digitalgarage/course/digital-marketing" },
-        { id: "c2", title: "HubSpot Content Marketing Certification", platform: "HubSpot", tags: ["Intermediate", "Content"], roi: 94, icon: "✍️", duration: "6 hours", link: "https://academy.hubspot.com/courses/content-marketing" },
-        { id: "c3", title: "Meta Social Media Marketing", platform: "Coursera", tags: ["Beginner", "Social Media"], roi: 92, icon: "📱", duration: "5 months", link: "https://www.coursera.org/professional-certificates/meta-social-media-marketing" }
+        { id: "c1", title: "Google Digital Garage - Fundamentals of Digital Marketing", platform: "Google", tags: ["Beginner", "Certification"], roi: 97, icon: "📈", duration: "40 hours", url: "#" },
+        { id: "c2", title: "HubSpot Content Marketing Certification", platform: "HubSpot", tags: ["Intermediate", "Content"], roi: 94, icon: "✍️", duration: "6 hours", url: "#" },
+        { id: "c3", title: "Meta Social Media Marketing", platform: "Coursera", tags: ["Beginner", "Social Media"], roi: 92, icon: "📱", duration: "5 months", url: "#" }
     ],
     "financial-analyst": [
-        { id: "c1", title: "Financial Modeling & Valuation Analyst (FMVA)", platform: "CFI", tags: ["Intermediate", "Certification"], roi: 96, icon: "💰", duration: "6 months", link: "https://corporatefinanceinstitute.com/certifications/financial-modeling-valuation-analyst-fmva-program/" },
-        { id: "c2", title: "Wall Street Prep Premium Package", platform: "Wall Street Prep", tags: ["Advanced", "Modeling"], roi: 95, icon: "🏦", duration: "Self-paced", link: "https://www.wallstreetprep.com/programs/premium-package/" },
-        { id: "c3", title: "Excel Skills for Business", platform: "Coursera", tags: ["Beginner", "Excel"], roi: 98, icon: "📊", duration: "6 weeks", link: "https://www.coursera.org/specializations/excel" }
+        { id: "c1", title: "Financial Modeling & Valuation Analyst (FMVA)", platform: "CFI", tags: ["Intermediate", "Certification"], roi: 96, icon: "💰", duration: "6 months", url: "#" },
+        { id: "c2", title: "Wall Street Prep Premium Package", platform: "Wall Street Prep", tags: ["Advanced", "Modeling"], roi: 95, icon: "🏦", duration: "Self-paced", url: "#" },
+        { id: "c3", title: "Excel Skills for Business", platform: "Coursera", tags: ["Beginner", "Excel"], roi: 98, icon: "📊", duration: "6 weeks", url: "#" }
     ],
     "teacher": [
-        { id: "c1", title: "Foundations of Teaching for Learning", platform: "Coursera", tags: ["Beginner", "Pedagogy"], roi: 95, icon: "👩‍🏫", duration: "4 weeks", link: "https://www.coursera.org/specializations/foundations-teaching-learning" },
-        { id: "c2", title: "Instructional Design Masterclass", platform: "Udemy", tags: ["Intermediate", "Course Creation"], roi: 92, icon: "📝", duration: "8 hours", link: "https://www.udemy.com/course/instructional-design-masterclass/" },
-        { id: "c3", title: "Video Production for Educators", platform: "Skillshare", tags: ["Beginner", "Video Editing"], roi: 88, icon: "🎥", duration: "3 hours", link: "https://www.skillshare.com/en/search?query=Video%20Production%20for%20Educators" }
+        { id: "c1", title: "Foundations of Teaching for Learning", platform: "Coursera", tags: ["Beginner", "Pedagogy"], roi: 95, icon: "👩‍🏫", duration: "4 weeks", url: "#" },
+        { id: "c2", title: "Instructional Design Masterclass", platform: "Udemy", tags: ["Intermediate", "Course Creation"], roi: 92, icon: "📝", duration: "8 hours", url: "#" },
+        { id: "c3", title: "Video Production for Educators", platform: "Skillshare", tags: ["Beginner", "Video Editing"], roi: 88, icon: "🎥", duration: "3 hours", url: "#" }
     ]
 };
-
-function generateCourseLink(courseName, tag, platform) {
-    const query = encodeURIComponent(`${courseName} ${tag}`);
-    const plat = (platform || "").toLowerCase();
-    
-    if (plat.includes("coursera")) return `https://www.coursera.org/search?query=${query}`;
-    if (plat.includes("udemy")) return `https://www.udemy.com/courses/search/?q=${query}`;
-    if (plat.includes("edx")) return `https://www.edx.org/search?q=${query}`;
-    if (plat.includes("skillshare")) return `https://www.skillshare.com/en/search?query=${query}`;
-    
-    // Default fallback to YouTube
-    return `https://www.youtube.com/results?search_query=${query}+full+course`;
-}
 
 // ─── UTILITY FUNCTIONS (CAREER PATH DRIVEN) ─────────────────────────────────
 function getSkillsByRole(roleId) {
@@ -391,8 +378,8 @@ function getCoursesByRole(roleId) {
     if (COURSES_DB[roleId]) return COURSES_DB[roleId];
     const role = TRENDING_ROLES.find(r => r.id === roleId) || { title: "Role" };
     return [
-        { id: "c1", title: `${role.title} Fundamentals`, platform: "Coursera", tags: ["Beginner", "Certification"], roi: 95, icon: "🎓", duration: "4 weeks", link: generateCourseLink(`${role.title} Fundamentals`, "Beginner", "Coursera") },
-        { id: "c2", title: `Advanced ${role.title} Masterclass`, platform: "Udemy", tags: ["Advanced", "Practical"], roi: 92, icon: "🚀", duration: "8 weeks", link: generateCourseLink(`Advanced ${role.title} Masterclass`, "Advanced", "Udemy") }
+        { id: "c1", title: `${role.title} Fundamentals`, platform: "Coursera", tags: ["Beginner", "Certification"], roi: 95, icon: "🎓", duration: "4 weeks", url: "#" },
+        { id: "c2", title: `Advanced ${role.title} Masterclass`, platform: "Udemy", tags: ["Advanced", "Practical"], roi: 92, icon: "🚀", duration: "8 weeks", url: "#" }
     ];
 }
 function getJobsByRole(roleId) {
@@ -2458,12 +2445,7 @@ function CourseSection({ user, selectedCareerPath }) {
         let free = c.free || false;
         if (c.platform.includes("Helsinki") || c.platform.includes("FreeCodeCamp") || c.platform.toLowerCase().includes("free")) free = true;
         
-        let link = c.link || c.url;
-        if (!link || link === "#") {
-            link = generateCourseLink(c.title, c.tags[0] || "", c.platform);
-        }
-
-        return { ...c, level, free, link };
+        return { ...c, level, free };
     }), [coursesRaw]);
 
     const [levelFilter, setLevelFilter] = useState("All");
