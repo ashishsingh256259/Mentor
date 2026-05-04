@@ -545,24 +545,6 @@ function calcJobMatch(user, job, selectedCareerPath) {
   return { matchPct, matchedSkills: matched, missingSkills: job.required_skills.filter(s => !matched.includes(s)) };
 }
 
-async function askClaude(messages, systemPrompt = "", maxTokens = 1000) {
-  try {
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "claude-sonnet-6-",
-        max_tokens: maxTokens,
-        system: systemPrompt,
-        messages,
-      }),
-    });
-    const data = await res.json();
-    return data.content?.[0]?.text || "Sorry, I couldn't respond right now.";
-  } catch {
-    return "Connection error. Please try again.";
-  }
-}
 
 // ─── SHARED COMPONENTS ────────────────────────────────────────────────────────
 function GlowBg() {
@@ -3280,6 +3262,49 @@ export default function App() {
   const [chatOpen, setChatOpen] = useState(false);
   const [plan, setPlan] = useState("free");
   const [showUpgrade, setShowUpgrade] = useState(false);
+
+  const [messages, setMessages] = useState([]);
+const [input, setInput] = useState("");
+
+const sendMessage = async () => {
+  if (!input.trim()) return;
+
+  const userMsg = {
+    role: "user",
+    content: input,
+  };
+
+  setMessages(prev => [...prev, userMsg]);
+
+  try {
+    const res = await fetch("https://mentor-w7xg.onrender.com/api/chat", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        messages: [userMsg],
+        body: JSON.stringify({
+  messages: [userMsg]
+})
+      }),
+    });
+
+    const data = await res.json();
+
+    const botMsg = {
+      role: "assistant",
+      content: data.reply,
+    };
+
+    setMessages(prev => [...prev, botMsg]);
+
+  } catch (err) {
+    console.error("Chat Error:", err);
+  }
+
+  setInput("");
+};
 
 
   useEffect(() => {
