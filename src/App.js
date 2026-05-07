@@ -2627,6 +2627,24 @@ function PageAuth({ onAuthSuccess, onIndustryAuthSuccess }) {
 
       console.log(result.user);
 
+      // Save user to MongoDB
+      try {
+        await fetch(`${API}/api/save-user`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            name: result.user.displayName || "Google User",
+            email: result.user.email,
+            photo: result.user.photoURL || "",
+            role: "student",
+          }),
+        });
+      } catch (err) {
+        console.error("Failed to save user to backend", err);
+      }
+
       localStorage.setItem(
         "forgeUser",
         JSON.stringify(result.user)

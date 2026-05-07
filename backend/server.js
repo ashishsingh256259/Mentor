@@ -21,6 +21,8 @@ mongoose.connect(process.env.MONGO_URI)
   .then(() => console.log("MongoDB Connected ✅"))
   .catch(err => console.log("Mongo Error ❌", err));
 
+const User = require("./models/User");
+
 app.use(cors());
 app.use(express.json());
 
@@ -33,6 +35,48 @@ const razorpay = new Razorpay({
 // TEST ROUTE
 app.get("/", (req, res) => {
   res.send("Backend working ✅");
+});
+
+// SAVE USER ROUTE
+app.post("/api/save-user", async (req, res) => {
+  try {
+    const { name, email, photo, role } = req.body;
+
+    if (!name || !email) {
+      return res.status(400).json({ success: false, error: "Name and email are required" });
+    }
+
+    let user = await User.findOne({ email });
+
+    if (user) {
+      return res.status(200).json({
+        success: true,
+        message: "User already exists",
+        user
+      });
+    }
+
+    user = new User({
+      name,
+      email,
+      photo,
+      role: role || "student"
+    });
+
+    await user.save();
+
+    return res.status(201).json({
+      success: true,
+      message: "User saved successfully",
+      user
+    });
+  } catch (error) {
+    console.error("Save User Error:", error);
+    return res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
 });
 
 // RAZORPAY: Create Order
