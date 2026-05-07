@@ -1,5 +1,7 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { auth } from "./firebase";
+import { GoogleAuthProvider, signInWithPopup } from "firebase/auth";
 
 // Set API base from env or fallback
 const API = process.env.REACT_APP_API_URL || "https://mentor-w7xg.onrender.com";
@@ -2617,6 +2619,30 @@ function PageAuth({ onAuthSuccess, onIndustryAuthSuccess }) {
   const [companySize, setCompanySize] = useState("");
   const [loading, setLoading] = useState(false);
 
+  const provider = new GoogleAuthProvider();
+
+  const login = async () => {
+    try {
+      const result = await signInWithPopup(auth, provider);
+
+      console.log(result.user);
+
+      localStorage.setItem(
+        "forgeUser",
+        JSON.stringify(result.user)
+      );
+
+      alert("Login Successful");
+
+      window.location.href = "/";
+
+    } catch (err) {
+      console.log(err);
+
+      alert(err.message);
+    }
+  };
+
   async function handleSubmit(e) {
     e.preventDefault();
     if (userType === "student") {
@@ -2759,7 +2785,7 @@ function PageAuth({ onAuthSuccess, onIndustryAuthSuccess }) {
           <div style={{ flex: 1, height: 1, background: "var(--border)" }} />
         </div>
 
-        <button className="btn-ghost" style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 10 }}>
+        <button className="btn-ghost" onClick={login} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 10 }}>
           <span style={{ fontSize: 18 }}>G</span> Continue with Google
         </button>
 
