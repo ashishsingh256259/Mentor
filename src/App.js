@@ -1,7 +1,7 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { auth } from "./firebase";
-import { GoogleAuthProvider, signInWithPopup, createUserWithEmailAndPassword, signInWithEmailAndPassword } from "firebase/auth";
+import { GoogleAuthProvider, signInWithPopup, createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "firebase/auth";
 import { useNavigate, Routes, Route } from "react-router-dom";
 
 // Set API base from env or fallback
@@ -2772,13 +2772,27 @@ function PageAuth({ onAuthSuccess, onIndustryAuthSuccess }) {
       navigate("/");
 
     } catch (err) {
-      console.error(err);
-      if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
-        alert("Invalid email or password.");
-      } else if (err.code === 'auth/email-already-in-use') {
-        alert("Email already in use. Please login instead.");
-      } else {
-        alert(err.message);
+      console.error("Firebase Auth Error:", err);
+      
+      switch (err.code) {
+        case 'auth/invalid-email':
+          alert("The email address is improperly formatted.");
+          break;
+        case 'auth/user-not-found':
+          alert("No account found with this email. Please sign up.");
+          break;
+        case 'auth/wrong-password':
+        case 'auth/invalid-credential':
+          alert("Incorrect password or email. Please try again.");
+          break;
+        case 'auth/email-already-in-use':
+          alert("This email is already registered. Please log in.");
+          break;
+        case 'auth/weak-password':
+          alert("Your password is too weak. Please use at least 6 characters.");
+          break;
+        default:
+          alert("Authentication failed: " + err.message);
       }
     } finally {
       setLoading(false);
@@ -3488,8 +3502,10 @@ function IndustryApp({ industryUser, onLogout }) {
 
 // ─── MAIN APP ─────────────────────────────────────────────────────────────────
 export default function App() {
+  const navigate = useNavigate();
   const [view, setView] = useState("auth"); // auth | onboarding | app | industry-app
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [authLoading, setAuthLoading] = useState(true);
   const [user, setUser] = useState(null);
   const [industryUser, setIndustryUser] = useState(null);
   const [selectedCareerPath, setSelectedCareerPath] = useState(null);
@@ -3498,29 +3514,57 @@ export default function App() {
   const [plan, setPlan] = useState("free");
   const [showUpgrade, setShowUpgrade] = useState(false);
 
-
   useEffect(() => {
-    // Check for existing session
-    const token = localStorage.getItem("forge_jwt");
-    const savedProfile = localStorage.getItem("forge_user_profile");
-    const industryToken = localStorage.getItem("forge_industry_jwt");
-    const industryProfile = localStorage.getItem("forge_industry_profile");
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      setAuthLoading(false);
 
-    if (industryToken && industryProfile) {
-      setIndustryUser(JSON.parse(industryProfile));
-      setView("industry-app");
-    } else if (token) {
-      setIsAuthenticated(true);
-      if (savedProfile) {
-        const parsed = JSON.parse(savedProfile);
-        setUser(parsed);
-        setSelectedCareerPath(parsed.targetRole);
-        setView("app");
-      } else {
-        setView("onboarding");
+      const industryToken = localStorage.getItem("forge_industry_jwt");
+      const industryProfile = localStorage.getItem("forge_industry_profile");
+
+      if (industryToken && industryProfile) {
+        setIndustryUser(JSON.parse(industryProfile));
+        setView("industry-app");
+        if (window.location.pathname === "/login" || window.location.pathname === "/auth") {
+          navigate("/");
+        }
+        return;
       }
-    }
-  }, []);
+
+      if (firebaseUser) {
+        setIsAuthenticated(true);
+        const savedProfile = localStorage.getItem("forge_user_profile");
+        
+        // Skip onboarding if they have a saved profile with a target role
+        if (savedProfile && JSON.parse(savedProfile).targetRole) {
+          const parsed = JSON.parse(savedProfile);
+          setUser(parsed);
+          setSelectedCareerPath(parsed.targetRole);
+          setView("app");
+        } else {
+          // Go to onboarding
+          setUser(savedProfile ? JSON.parse(savedProfile) : {
+            name: firebaseUser.displayName || firebaseUser.email.split('@')[0],
+            email: firebaseUser.email,
+            planType: "free"
+          });
+          setView("onboarding");
+        }
+
+        // Detect and redirect away from login/auth pages safely
+        if (window.location.pathname === "/login" || window.location.pathname === "/auth") {
+          navigate("/");
+        }
+      } else {
+        // User is logged out
+        setIsAuthenticated(false);
+        setUser(null);
+        setSelectedCareerPath(null);
+        setView("auth");
+      }
+    });
+
+    return () => unsubscribe();
+  }, [navigate]);
 
   function handleAuthSuccess(profileData, hasCompletedOnboarding) {
     setIsAuthenticated(true);
@@ -3554,12 +3598,16 @@ export default function App() {
   }
 
   function logout() {
-    localStorage.removeItem("forge_jwt");
-    localStorage.removeItem("forge_user_profile");
-    setIsAuthenticated(false);
-    setUser(null);
-    setSelectedCareerPath(null);
-    setView("auth");
+    signOut(auth).then(() => {
+      localStorage.removeItem("forge_jwt");
+      localStorage.removeItem("forgeUser");
+      // Intentionally NOT removing "forge_user_profile" to prevent onboarding loop on next login
+      setIsAuthenticated(false);
+      setUser(null);
+      setSelectedCareerPath(null);
+      setView("auth");
+      navigate("/");
+    });
   }
 
   function logoutIndustry() {
@@ -3567,6 +3615,15 @@ export default function App() {
     localStorage.removeItem("forge_industry_profile");
     setIndustryUser(null);
     setView("auth");
+  }
+
+  if (authLoading) {
+    return (
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--bg)", color: "var(--text)" }}>
+        <div className="spinner" style={{ marginRight: 12, borderTopColor: "var(--amber)" }} />
+        <span style={{ fontSize: 16, fontWeight: 600, color: "var(--text2)" }}>Verifying Session...</span>
+      </div>
+    );
   }
 
   return (
