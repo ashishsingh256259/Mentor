@@ -549,20 +549,24 @@ function calcJobMatch(user, job, selectedCareerPath) {
   return { matchPct, matchedSkills: matched, missingSkills: job.required_skills.filter(s => !matched.includes(s)) };
 }
 
-async function askClaude(messages, systemPrompt = "", maxTokens = 1000) {
+async function askClaude(messages, userProfile = {}, systemPrompt = "", maxTokens = 1000) {
   try {
-    const res = await fetch(`${API}`, {
+    const formattedMessages = messages.map(m => ({ content: m.content || m }));
+    const payload = {
+      messages: formattedMessages,
+      userProfile: {
+        name: userProfile?.name || "",
+        field: userProfile?.targetRole?.field || "",
+        career: userProfile?.targetRole?.title || ""
+      }
+    };
+    const res = await fetch(`${API}/api/chat`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "claude-sonnet-6-",
-        max_tokens: maxTokens,
-        system: systemPrompt,
-        messages,
-      }),
+      body: JSON.stringify(payload),
     });
     const data = await res.json();
-    return data.content?.[0]?.text || "Sorry, I couldn't respond right now.";
+    return data.reply || data.message || data.content?.[0]?.text || "Sorry, I couldn't respond right now.";
   } catch {
     return "Connection error. Please try again.";
   }
@@ -1243,7 +1247,7 @@ Submission URL: ${submitUrl || "not provided"}.
 Description: ${submitDesc || "not provided"}. 
 Evaluate for: code quality, problem solving, completeness, best practices, hiring signal. Score 0–100.`;
 
-    const reply = await askClaude([{ role: "user", content: prompt }], sys, 700);
+    const reply = await askClaude([{ role: "user", content: prompt }], user, sys, 700);
     try {
       const clean = reply.replace(/```json|```/g, "").trim();
       const parsed = JSON.parse(clean);
@@ -1390,7 +1394,7 @@ function PageAssessment({ user, setUser, selectedCareerPath }) {
     const sys = `Generate 5 multiple-choice quiz questions targeting weak areas. Return ONLY valid JSON array:
 [{"q":"question","options":["a","b","c","d"],"correct":0,"explanation":"why this is correct"}]`;
     const prompt = `Target role: ${role.title}. Weak skills: ${skillGaps.join(", ") || role.skills_needed.join(", ")}. Generate 5 MCQs testing these specific skills. Difficulty: ${user.experienceLevel || "intermediate"}.`;
-    const reply = await askClaude([{ role: "user", content: prompt }], sys, 1000);
+    const reply = await askClaude([{ role: "user", content: prompt }], user, sys, 1000);
     try {
       const clean = reply.replace(/```json|```/g, "").trim();
       const parsed = JSON.parse(clean);
@@ -1791,7 +1795,7 @@ function PagePortfolio({ user, selectedCareerPath }) {
     const sys = `You are a professional resume writer for tech/business roles in India. Generate a structured resume. Return ONLY valid JSON:
 {"summary":"2-3 sentence professional summary","skills":["skill1","skill2"],"projects":[{"name":"","description":"","tech":""}],"achievements":["achievement1"],"education_tips":["tip1","tip2"],"keywords":["ats keyword1","ats keyword2"]}`;
     const prompt = `Candidate: ${user.name}. Target: ${role.title}. Education: ${user.eduLevel}. Experience: ${user.experienceLevel}. Verified skills: ${verifiedSkills.join(", ") || "building..."}. Projects: ${projects.join(", ") || "none yet"}. Job readiness: ${readiness}%. Generate a strong resume JSON.`;
-    const reply = await askClaude([{ role: "user", content: prompt }], sys, 1000);
+    const reply = await askClaude([{ role: "user", content: prompt }], user, sys, 1000);
     try {
       const clean = reply.replace(/```json|```/g, "").trim();
       setResume(JSON.parse(clean));
@@ -2022,7 +2026,7 @@ function PageDailyChallenge({ user, setUser, selectedCareerPath }) {
     const sys = `You're evaluating a daily learning challenge submission. Return ONLY valid JSON:
 {"passed":true,"score":80,"feedback":"specific 2-3 sentence feedback","xp_awarded":40}`;
     const prompt = `Challenge: "${activeChallenge.title}". Description: "${activeChallenge.desc}". Submission: "${submission}". Type: ${activeChallenge.type}. Evaluate pass/fail and give specific feedback.`;
-    const reply = await askClaude([{ role: "user", content: prompt }], sys, 500);
+    const reply = await askClaude([{ role: "user", content: prompt }], user, sys, 500);
     try {
       const clean = reply.replace(/```json|```/g, "").trim();
       const parsed = JSON.parse(clean);
@@ -2204,9 +2208,17 @@ function PageResources({ user, selectedCareerPath }) {
 [{"title":"Resource Name","url":"https://...","why":"one sentence why perfect for this person"}]`;
     const prompt = `Student targeting ${role.title} (${role.category}). Missing skills: ${skillGaps.join(", ") || role.skills_needed.join(", ")}. Recommend 3 specific free resources.`;
     try {
-      const res = await fetch(`${API}/api/chat`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ model: "claude-sonnet-6-", max_tokens: 400, system: sys, messages: [{ role: "user", content: prompt }] }) });
+      const payload = {
+        messages: [{ content: prompt }],
+        userProfile: {
+          name: user?.name || "",
+          field: role?.field || "",
+          career: role?.title || ""
+        }
+      };
+      const res = await fetch(`${API}/api/chat`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
       const data = await res.json();
-      const text = data.content?.[0]?.text || "[]";
+      const text = data.reply || data.message || data.content?.[0]?.text || "[]";
       setAiPicks(JSON.parse(text.replace(/```json|```/g, "").trim()));
     } catch { setAiPicks([{ title: "Error loading picks", url: "#", why: "Please try again." }]); }
     setAiLoading(false);
@@ -2283,6 +2295,81 @@ function PageMentors({ user, plan, onUpgrade, selectedCareerPath }) {
   const relevant = MENTORS.filter(m => m.specialFor.includes(role.id));
   const others = MENTORS.filter(m => !m.specialFor.includes(role.id));
 
+  const loadRazorpayScript = () => {
+    return new Promise((resolve) => {
+      const script = document.createElement("script");
+      script.src = "https://checkout.razorpay.com/v1/checkout.js";
+      script.onload = () => resolve(true);
+      script.onerror = () => resolve(false);
+      document.body.appendChild(script);
+    });
+  };
+
+  async function handlePayment(mentor) {
+    const res = await loadRazorpayScript();
+    if (!res) {
+      alert("Razorpay SDK failed to load. Are you online?");
+      return;
+    }
+
+    try {
+      const orderRes = await fetch(`${API}/api/payment/create-order`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ amount: mentor.price_per_session }),
+      });
+      const orderData = await orderRes.json();
+
+      if (!orderData || !orderData.id) {
+        alert("Server error. Please try again.");
+        return;
+      }
+
+      const options = {
+        key: process.env.REACT_APP_RAZORPAY_KEY_ID || "rzp_test_Sl9uDXg6wWwLjb",
+        amount: orderData.amount,
+        currency: orderData.currency,
+        name: "Forge Mentor Session",
+        description: `Booking with ${mentor.name}`,
+        order_id: orderData.id,
+        handler: async function (response) {
+          try {
+            const verifyRes = await fetch(`${API}/api/payment/verify`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature,
+              }),
+            });
+            const verifyData = await verifyRes.json();
+            if (verifyData.success) {
+              alert(`Payment Successful! Session booked with ${mentor.name}.`);
+            } else {
+              alert("Payment verification failed!");
+            }
+          } catch (err) {
+            console.error("Verification error", err);
+          }
+        },
+        prefill: {
+          name: user?.name || "",
+          email: user?.email || "",
+          contact: "9999999999"
+        },
+        theme: {
+          color: "#8B5CF6"
+        }
+      };
+
+      const paymentObject = new window.Razorpay(options);
+      paymentObject.open();
+    } catch (err) {
+      alert("Something went wrong!");
+    }
+  }
+
   function MentorCard({ mentor }) {
     return (
       <div className="mentor-card" style={{ padding: "22px", borderRadius: 18, background: "var(--surface)", border: "1px solid var(--border)" }}>
@@ -2307,10 +2394,10 @@ function PageMentors({ user, plan, onUpgrade, selectedCareerPath }) {
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 14 }}>
           {mentor.expertise.map(e => <span key={e} style={{ padding: "3px 8px", borderRadius: 8, background: "var(--bg3)", color: "var(--text2)", fontSize: 11, border: "1px solid var(--border)" }}>{e}</span>)}
         </div>
-        <button onClick={plan !== "pro" ? onUpgrade : undefined}
+        <button onClick={() => handlePayment(mentor)}
           className={mentor.available ? "btn-primary" : "btn-ghost"} style={{ width: "100%", padding: "11px", fontSize: 13 }}
           disabled={!mentor.available}>
-          {!mentor.available ? "Fully Booked" : plan !== "pro" ? "✦ Pro — Book Session" : "Book Session →"}
+          {!mentor.available ? "Fully Booked" : "Book Session →"}
         </button>
       </div>
     );
@@ -2432,7 +2519,7 @@ YOUR PERSONA & RULES:
     setLoading(true);
     setMsgCount(c => c + 1);
     const history = [...messages, userMsg].map(m => ({ role: m.role, content: m.content }));
-    const reply = await askClaude(history, systemPrompt);
+    const reply = await askClaude(history, user, systemPrompt);
     setMessages(m => [...m, { role: "assistant", content: reply }]);
     setLoading(false);
   }
