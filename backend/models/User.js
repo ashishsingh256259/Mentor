@@ -17,6 +17,13 @@ const userSchema = new mongoose.Schema({
     type: String,
     default: "student",
   },
+  onboardingCompleted: {
+    type: Boolean,
+    default: false,
+  },
+  preferences: {
+    type: mongoose.Schema.Types.Mixed,
+  },
   createdAt: {
     type: Date,
     default: Date.now,

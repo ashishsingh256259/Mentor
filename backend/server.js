@@ -40,7 +40,7 @@ app.get("/", (req, res) => {
 // SAVE USER ROUTE
 app.post("/api/save-user", async (req, res) => {
   try {
-    const { name, email, photo, role } = req.body;
+    const { name, email, photo, role, onboardingCompleted, preferences } = req.body;
 
     if (!name || !email) {
       return res.status(400).json({ success: false, error: "Name and email are required" });
@@ -49,6 +49,24 @@ app.post("/api/save-user", async (req, res) => {
     let user = await User.findOne({ email });
 
     if (user) {
+      let updated = false;
+      if (onboardingCompleted !== undefined) {
+        user.onboardingCompleted = onboardingCompleted;
+        updated = true;
+      }
+      if (preferences !== undefined) {
+        user.preferences = preferences;
+        updated = true;
+      }
+      if (photo && photo !== user.photo) {
+        user.photo = photo;
+        updated = true;
+      }
+      
+      if (updated) {
+        await user.save();
+      }
+
       return res.status(200).json({
         success: true,
         message: "User already exists",
@@ -60,7 +78,9 @@ app.post("/api/save-user", async (req, res) => {
       name,
       email,
       photo,
-      role: role || "student"
+      role: role || "student",
+      onboardingCompleted: onboardingCompleted || false,
+      preferences: preferences || {}
     });
 
     await user.save();

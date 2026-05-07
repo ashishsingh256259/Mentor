@@ -2631,7 +2631,7 @@ function PageAuth({ onAuthSuccess, onIndustryAuthSuccess }) {
 
       // Save user to MongoDB
       try {
-        await fetch(`${API}/api/save-user`, {
+        const res = await fetch(`${API}/api/save-user`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -2643,6 +2643,26 @@ function PageAuth({ onAuthSuccess, onIndustryAuthSuccess }) {
             role: "student",
           }),
         });
+        const data = await res.json();
+        
+        localStorage.setItem("forgeUser", JSON.stringify(result.user));
+        const mockToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.mockToken";
+        localStorage.setItem("forge_jwt", mockToken);
+
+        const profileData = data.success && data.user ? {
+          name: data.user.name,
+          email: data.user.email,
+          planType: "free",
+          ...(data.user.preferences || {})
+        } : { name: result.user.displayName || "Google User", email: result.user.email, planType: "free" };
+        
+        localStorage.setItem("forge_user_profile", JSON.stringify(profileData));
+
+        alert("Login Successful");
+
+        onAuthSuccess(profileData, !!data.user?.onboardingCompleted);
+        navigate("/");
+        return;
       } catch (err) {
         console.error("Failed to save user to backend", err);
       }
@@ -2718,7 +2738,7 @@ function PageAuth({ onAuthSuccess, onIndustryAuthSuccess }) {
       // Save user to MongoDB securely
       if (userType === "student") {
         try {
-          await fetch(`${API}/api/save-user`, {
+          const res = await fetch(`${API}/api/save-user`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -2728,6 +2748,26 @@ function PageAuth({ onAuthSuccess, onIndustryAuthSuccess }) {
               role: "student",
             }),
           });
+          const data = await res.json();
+          
+          localStorage.setItem("forgeUser", JSON.stringify(firebaseUser));
+          const mockToken = firebaseUser.accessToken || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.mockToken";
+          localStorage.setItem("forge_jwt", mockToken);
+
+          const profileData = data.success && data.user ? {
+            name: data.user.name,
+            email: data.user.email,
+            planType: "free",
+            ...(data.user.preferences || {})
+          } : { name: isLogin ? (firebaseUser.displayName || email.split("@")[0]) : name, email: firebaseUser.email, planType: "free" };
+          
+          localStorage.setItem("forge_user_profile", JSON.stringify(profileData));
+          
+          alert(isLogin ? "Login Successful" : "Signup Successful");
+          
+          onAuthSuccess(profileData, !!data.user?.onboardingCompleted);
+          navigate("/");
+          return;
         } catch (err) {
           console.error("Failed to save user to backend", err);
         }
@@ -3515,15 +3555,14 @@ export default function App() {
   const [showUpgrade, setShowUpgrade] = useState(false);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
-      setAuthLoading(false);
-
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       const industryToken = localStorage.getItem("forge_industry_jwt");
       const industryProfile = localStorage.getItem("forge_industry_profile");
 
       if (industryToken && industryProfile) {
         setIndustryUser(JSON.parse(industryProfile));
         setView("industry-app");
+        setAuthLoading(false);
         if (window.location.pathname === "/login" || window.location.pathname === "/auth") {
           navigate("/");
         }
@@ -3531,35 +3570,70 @@ export default function App() {
       }
 
       if (firebaseUser) {
-        setIsAuthenticated(true);
-        const savedProfile = localStorage.getItem("forge_user_profile");
-        
-        // Skip onboarding if they have a saved profile with a target role
-        if (savedProfile && JSON.parse(savedProfile).targetRole) {
-          const parsed = JSON.parse(savedProfile);
-          setUser(parsed);
-          setSelectedCareerPath(parsed.targetRole);
-          setView("app");
-        } else {
-          // Go to onboarding
-          setUser(savedProfile ? JSON.parse(savedProfile) : {
-            name: firebaseUser.displayName || firebaseUser.email.split('@')[0],
-            email: firebaseUser.email,
-            planType: "free"
+        try {
+          const res = await fetch(`${API}/api/save-user`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              name: firebaseUser.displayName || firebaseUser.email.split('@')[0],
+              email: firebaseUser.email,
+              photo: firebaseUser.photoURL || "",
+              role: "student"
+            })
           });
-          setView("onboarding");
+          const data = await res.json();
+          if (data.success && data.user) {
+            const profileData = {
+              name: data.user.name,
+              email: data.user.email,
+              planType: "free",
+              ...(data.user.preferences || {})
+            };
+            localStorage.setItem("forge_user_profile", JSON.stringify(profileData));
+            setIsAuthenticated(true);
+            
+            if (data.user.onboardingCompleted) {
+              setUser(profileData);
+              setSelectedCareerPath(profileData.targetRole);
+              setView("app");
+            } else {
+              setUser(profileData);
+              setView("onboarding");
+            }
+          } else {
+            throw new Error("Invalid response");
+          }
+        } catch (err) {
+          console.error("Failed to fetch user from DB", err);
+          setIsAuthenticated(true);
+          const savedProfile = localStorage.getItem("forge_user_profile");
+          
+          if (savedProfile && JSON.parse(savedProfile).targetRole) {
+            const parsed = JSON.parse(savedProfile);
+            setUser(parsed);
+            setSelectedCareerPath(parsed.targetRole);
+            setView("app");
+          } else {
+            setUser(savedProfile ? JSON.parse(savedProfile) : {
+              name: firebaseUser.displayName || firebaseUser.email.split('@')[0],
+              email: firebaseUser.email,
+              planType: "free"
+            });
+            setView("onboarding");
+          }
         }
 
-        // Detect and redirect away from login/auth pages safely
+        setAuthLoading(false);
+
         if (window.location.pathname === "/login" || window.location.pathname === "/auth") {
           navigate("/");
         }
       } else {
-        // User is logged out
         setIsAuthenticated(false);
         setUser(null);
         setSelectedCareerPath(null);
         setView("auth");
+        setAuthLoading(false);
       }
     });
 
@@ -3583,7 +3657,7 @@ export default function App() {
     setView("industry-app");
   }
 
-  function handleOnboardingComplete(data) {
+  async function handleOnboardingComplete(data) {
     const fullUser = {
       ...user,
       ...data,
@@ -3595,6 +3669,21 @@ export default function App() {
     setSelectedCareerPath(fullUser.targetRole);
     localStorage.setItem("forge_user_profile", JSON.stringify(fullUser));
     setView("app");
+
+    try {
+      await fetch(`${API}/api/save-user`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: fullUser.name,
+          email: fullUser.email,
+          onboardingCompleted: true,
+          preferences: fullUser
+        })
+      });
+    } catch (e) {
+      console.error("Failed to save onboarding completion", e);
+    }
   }
 
   function logout() {
