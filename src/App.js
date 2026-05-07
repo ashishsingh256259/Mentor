@@ -1,10 +1,13 @@
+
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+
+// Set API base from env or fallback
+const API = process.env.REACT_APP_API_URL || "https://mentor-w7xg.onrender.com";
 
 
 // ─── GLOBAL CSS ──────────────────────────────────────────────────────────────
-const GLOBAL_CSS = `
-@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800;900&family=DM+Sans:wght@300;400;500;600&display=swap');
 
+const GLOBAL_CSS = `
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
@@ -16,6 +19,7 @@ const GLOBAL_CSS = `
   --border: rgba(255,255,255,0.08);
   --border2: rgba(255,255,255,0.14);
   --text: #F0F0FF;
+  
   --text2: rgba(240,240,255,0.65);
   --text3: rgba(240,240,255,0.35);
   --amber: #F59E0B;
@@ -547,7 +551,7 @@ function calcJobMatch(user, job, selectedCareerPath) {
 
 async function askClaude(messages, systemPrompt = "", maxTokens = 1000) {
   try {
-    const res = await fetch("https://mentor-w7xg.onrender.com", {
+    const res = await fetch(`${API}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -2200,7 +2204,7 @@ function PageResources({ user, selectedCareerPath }) {
 [{"title":"Resource Name","url":"https://...","why":"one sentence why perfect for this person"}]`;
     const prompt = `Student targeting ${role.title} (${role.category}). Missing skills: ${skillGaps.join(", ") || role.skills_needed.join(", ")}. Recommend 3 specific free resources.`;
     try {
-      const res = await fetch("https://mentor-w7xg.onrender.com/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ model: "claude-sonnet-6-", max_tokens: 400, system: sys, messages: [{ role: "user", content: prompt }] }) });
+      const res = await fetch(`${API}/api/chat`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ model: "claude-sonnet-6-", max_tokens: 400, system: sys, messages: [{ role: "user", content: prompt }] }) });
       const data = await res.json();
       const text = data.content?.[0]?.text || "[]";
       setAiPicks(JSON.parse(text.replace(/```json|```/g, "").trim()));
