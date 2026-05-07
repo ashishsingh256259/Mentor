@@ -1,7 +1,8 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { auth } from "./firebase";
-import { GoogleAuthProvider, signInWithPopup } from "firebase/auth";
+import { GoogleAuthProvider, signInWithPopup, createUserWithEmailAndPassword, signInWithEmailAndPassword } from "firebase/auth";
+import { useNavigate, Routes, Route } from "react-router-dom";
 
 // Set API base from env or fallback
 const API = process.env.REACT_APP_API_URL || "https://mentor-w7xg.onrender.com";
@@ -2608,6 +2609,7 @@ function UpgradeModal({ onClose, onUpgrade }) {
 
 // ─── AUTHENTICATION (LOGIN & REGISTER) ────────────────────────────────────────
 function PageAuth({ onAuthSuccess, onIndustryAuthSuccess }) {
+  const navigate = useNavigate();
   const [isLogin, setIsLogin] = useState(true);
   const [userType, setUserType] = useState("student"); // "student" or "industry"
   const [email, setEmail] = useState("");
@@ -2645,62 +2647,142 @@ function PageAuth({ onAuthSuccess, onIndustryAuthSuccess }) {
         console.error("Failed to save user to backend", err);
       }
 
-      localStorage.setItem(
-        "forgeUser",
-        JSON.stringify(result.user)
-      );
+      localStorage.setItem("forgeUser", JSON.stringify(result.user));
+
+      // Setup state for the existing dashboard logic
+      const mockToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.mockToken";
+      localStorage.setItem("forge_jwt", mockToken);
+      const mockProfile = { name: result.user.displayName || "Google User", email: result.user.email, planType: "free" };
+      localStorage.setItem("forge_user_profile", JSON.stringify(mockProfile));
 
       alert("Login Successful");
 
-      window.location.href = "/";
+      onAuthSuccess(mockProfile, true);
+      navigate("/");
 
     } catch (err) {
-      console.log(err);
-
-      alert(err.message);
+      console.error(err);
+      alert("Login Failed");
     }
   };
 
   async function handleSubmit(e) {
     e.preventDefault();
-    if (userType === "student") {
-      if (!email || !password || (!isLogin && !name)) return;
-    } else {
-      if (!companyName || !industryType || !companySize || !email || !password || (!isLogin && !confirmPassword)) return;
-      if (!isLogin && password !== confirmPassword) return;
+
+    // Validation
+    if (!email) {
+      alert("Email is required.");
+      return;
     }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      alert("Please enter a valid email address.");
+      return;
+    }
+    if (!password) {
+      alert("Password is required.");
+      return;
+    }
+    if (password.length < 6) {
+      alert("Password must be at least 6 characters long.");
+      return;
+    }
+
+    if (userType === "student") {
+      if (!isLogin && !name) {
+        alert("Name is required for signup.");
+        return;
+      }
+    } else {
+      if (!companyName || !industryType || !companySize) {
+        alert("Company details are required.");
+        return;
+      }
+      if (!isLogin && password !== confirmPassword) {
+        alert("Passwords do not match.");
+        return;
+      }
+    }
+
     setLoading(true);
-    // Simulate API call & JWT Generation
-    setTimeout(() => {
+
+    try {
+      let userCredential;
+      if (isLogin) {
+        userCredential = await signInWithEmailAndPassword(auth, email, password);
+      } else {
+        userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      }
+
+      const firebaseUser = userCredential.user;
+
+      // Save user to MongoDB securely
       if (userType === "student") {
-        const mockToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.mockToken";
+        try {
+          await fetch(`${API}/api/save-user`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              name: isLogin ? (firebaseUser.displayName || email.split("@")[0]) : name,
+              email: firebaseUser.email,
+              photo: firebaseUser.photoURL || "",
+              role: "student",
+            }),
+          });
+        } catch (err) {
+          console.error("Failed to save user to backend", err);
+        }
+      }
+
+      localStorage.setItem("forgeUser", JSON.stringify(firebaseUser));
+
+      // Setup state for the existing dashboard logic
+      if (userType === "student") {
+        const mockToken = firebaseUser.accessToken || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.mockToken";
         localStorage.setItem("forge_jwt", mockToken);
 
         const mockUserProfile = {
-          name: isLogin ? "Welcome Back User" : name,
-          email: email,
+          name: isLogin ? (firebaseUser.displayName || email.split("@")[0]) : name,
+          email: firebaseUser.email,
           planType: "free"
         };
-        // Check if user already has an onboarding profile saved
         const savedProfile = localStorage.getItem("forge_user_profile");
-        setLoading(false);
-        onAuthSuccess(savedProfile ? JSON.parse(savedProfile) : mockUserProfile, !!savedProfile);
+
+        if (!isLogin) {
+          localStorage.setItem("forge_user_profile", JSON.stringify(mockUserProfile));
+          onAuthSuccess(mockUserProfile, false);
+        } else {
+          onAuthSuccess(savedProfile ? JSON.parse(savedProfile) : mockUserProfile, !!savedProfile);
+        }
       } else {
-        const mockToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.industryToken";
+        const mockToken = firebaseUser.accessToken || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.industryToken";
         localStorage.setItem("forge_industry_jwt", mockToken);
 
         const industryProfile = {
           companyName,
           industryType,
           companySize,
-          contactEmail: email,
+          contactEmail: firebaseUser.email,
           userType: "industry"
         };
         localStorage.setItem("forge_industry_profile", JSON.stringify(industryProfile));
-        setLoading(false);
         onIndustryAuthSuccess(industryProfile);
       }
-    }, 1500);
+
+      alert(isLogin ? "Login Successful" : "Signup Successful");
+      navigate("/");
+
+    } catch (err) {
+      console.error(err);
+      if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
+        alert("Invalid email or password.");
+      } else if (err.code === 'auth/email-already-in-use') {
+        alert("Email already in use. Please login instead.");
+      } else {
+        alert(err.message);
+      }
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -3488,43 +3570,47 @@ export default function App() {
   }
 
   return (
-    <div style={{ minHeight: "100vh", background: "var(--bg)", color: "var(--text)", fontFamily: "var(--font-body)" }}>
-      <style>{GLOBAL_CSS}</style>
-      <GlowBg />
+    <Routes>
+      <Route path="*" element={
+        <div style={{ minHeight: "100vh", background: "var(--bg)", color: "var(--text)", fontFamily: "var(--font-body)" }}>
+          <style>{GLOBAL_CSS}</style>
+          <GlowBg />
 
-      {showUpgrade && <UpgradeModal onClose={() => setShowUpgrade(false)} onUpgrade={() => setPlan("pro")} />}
+          {showUpgrade && <UpgradeModal onClose={() => setShowUpgrade(false)} onUpgrade={() => setPlan("pro")} />}
 
-      {view === "auth" && <PageAuth onAuthSuccess={handleAuthSuccess} onIndustryAuthSuccess={handleIndustryAuthSuccess} />}
+          {view === "auth" && <PageAuth onAuthSuccess={handleAuthSuccess} onIndustryAuthSuccess={handleIndustryAuthSuccess} />}
 
-      {view === "onboarding" && (
-        <PageOnboarding onComplete={handleOnboardingComplete} prefill={{ prefillName: user?.name, prefillEmail: user?.email }} />
-      )}
+          {view === "onboarding" && (
+            <PageOnboarding onComplete={handleOnboardingComplete} prefill={{ prefillName: user?.name, prefillEmail: user?.email }} />
+          )}
 
-      {view === "app" && user && selectedCareerPath && (
-        <>
-          <NavBar page={page} setPage={setPage} userName={user.name} plan={plan} onChat={() => setChatOpen(true)} onLogout={logout} />
-          {chatOpen && <ChatBot user={user} plan={plan} onClose={() => setChatOpen(false)} selectedCareerPath={selectedCareerPath} />}
-          <div style={{ position: "relative", zIndex: 1 }}>
-            {page === "dashboard" && <PageDashboard user={user} plan={plan} onUpgrade={() => setShowUpgrade(true)} setPage={setPage} selectedCareerPath={selectedCareerPath} />}
-            {page === "roadmap" && <PageRoadmap user={user} selectedCareerPath={selectedCareerPath} />}
-            {page === "tasks" && <PageTaskTracker user={user} setUser={setUser} selectedCareerPath={selectedCareerPath} />}
-            {page === "projects" && <PageProjects user={user} setUser={setUser} selectedCareerPath={selectedCareerPath} />}
-            {page === "courses" && <PageCourses user={user} selectedCareerPath={selectedCareerPath} />}
-            {page === "assessment" && <PageAssessment user={user} setUser={setUser} selectedCareerPath={selectedCareerPath} />}
-            {page === "skills" && <PageSkills user={user} selectedCareerPath={selectedCareerPath} />}
-            {page === "jobs" && <PageJobs user={user} plan={plan} onUpgrade={() => setShowUpgrade(true)} selectedCareerPath={selectedCareerPath} />}
-            {page === "portfolio" && <PagePortfolio user={user} selectedCareerPath={selectedCareerPath} />}
-            {page === "challenge" && <PageDailyChallenge user={user} setUser={setUser} selectedCareerPath={selectedCareerPath} />}
-            {page === "mentors" && <PageMentors user={user} plan={plan} onUpgrade={() => setShowUpgrade(true)} selectedCareerPath={selectedCareerPath} />}
-            {page === "resources" && <PageResources user={user} selectedCareerPath={selectedCareerPath} />}
-            {page === "pricing" && <PagePricing plan={plan} onUpgrade={() => setShowUpgrade(true)} />}
-          </div>
-        </>
-      )}
+          {view === "app" && user && selectedCareerPath && (
+            <>
+              <NavBar page={page} setPage={setPage} userName={user.name} plan={plan} onChat={() => setChatOpen(true)} onLogout={logout} />
+              {chatOpen && <ChatBot user={user} plan={plan} onClose={() => setChatOpen(false)} selectedCareerPath={selectedCareerPath} />}
+              <div style={{ position: "relative", zIndex: 1 }}>
+                {page === "dashboard" && <PageDashboard user={user} plan={plan} onUpgrade={() => setShowUpgrade(true)} setPage={setPage} selectedCareerPath={selectedCareerPath} />}
+                {page === "roadmap" && <PageRoadmap user={user} selectedCareerPath={selectedCareerPath} />}
+                {page === "tasks" && <PageTaskTracker user={user} setUser={setUser} selectedCareerPath={selectedCareerPath} />}
+                {page === "projects" && <PageProjects user={user} setUser={setUser} selectedCareerPath={selectedCareerPath} />}
+                {page === "courses" && <PageCourses user={user} selectedCareerPath={selectedCareerPath} />}
+                {page === "assessment" && <PageAssessment user={user} setUser={setUser} selectedCareerPath={selectedCareerPath} />}
+                {page === "skills" && <PageSkills user={user} selectedCareerPath={selectedCareerPath} />}
+                {page === "jobs" && <PageJobs user={user} plan={plan} onUpgrade={() => setShowUpgrade(true)} selectedCareerPath={selectedCareerPath} />}
+                {page === "portfolio" && <PagePortfolio user={user} selectedCareerPath={selectedCareerPath} />}
+                {page === "challenge" && <PageDailyChallenge user={user} setUser={setUser} selectedCareerPath={selectedCareerPath} />}
+                {page === "mentors" && <PageMentors user={user} plan={plan} onUpgrade={() => setShowUpgrade(true)} selectedCareerPath={selectedCareerPath} />}
+                {page === "resources" && <PageResources user={user} selectedCareerPath={selectedCareerPath} />}
+                {page === "pricing" && <PagePricing plan={plan} onUpgrade={() => setShowUpgrade(true)} />}
+              </div>
+            </>
+          )}
 
-      {view === "industry-app" && industryUser && (
-        <IndustryApp industryUser={industryUser} onLogout={logoutIndustry} />
-      )}
-    </div>
+          {view === "industry-app" && industryUser && (
+            <IndustryApp industryUser={industryUser} onLogout={logoutIndustry} />
+          )}
+        </div>
+      } />
+    </Routes>
   );
 }
