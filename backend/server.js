@@ -22,6 +22,7 @@ mongoose.connect(process.env.MONGO_URI)
   .catch(err => console.log("Mongo Error ❌", err));
 
 const User = require("./models/User");
+const requireFirebase = require("./middleware/requireFirebase");
 
 app.use(cors());
 app.use(express.json({ limit: "64kb" }));
@@ -38,9 +39,10 @@ app.get("/", (req, res) => {
 });
 
 // SAVE USER ROUTE
-app.post("/api/save-user", async (req, res) => {
+app.post("/api/save-user", requireFirebase, async (req, res) => {
   try {
-    const { name, email, photo, role, onboardingCompleted, preferences } = req.body;
+    const { name, photo, onboardingCompleted, preferences } = req.body;
+    const email = req.identity.email;
 
     if (!name || !email) {
       return res.status(400).json({ success: false, error: "Name and email are required" });
@@ -78,7 +80,7 @@ app.post("/api/save-user", async (req, res) => {
       name,
       email,
       photo,
-      role: role || "student",
+      role: "student",
       onboardingCompleted: onboardingCompleted || false,
       preferences: preferences || {}
     });
@@ -94,7 +96,7 @@ app.post("/api/save-user", async (req, res) => {
     console.error("Save User Error:", error);
     return res.status(500).json({
       success: false,
-      error: error.message
+      error: "Unable to save profile"
     });
   }
 });
