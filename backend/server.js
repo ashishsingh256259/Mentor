@@ -24,7 +24,7 @@ mongoose.connect(process.env.MONGO_URI)
 const User = require("./models/User");
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: "64kb" }));
 
 // Initialize Razorpay instance
 const razorpay = new Razorpay({
@@ -141,9 +141,13 @@ app.post("/api/verify-payment", (req, res) => {
 // MAIN CHAT ROUTE
 app.post("/api/chat", async (req, res) => {
   try {
-    console.log("BODY:", req.body);
-
-    const userMessage = req.body?.messages?.[0]?.content || "Hello";
+    const userMessage = req.body?.messages?.[0]?.content;
+    if (typeof userMessage !== "string" || !userMessage.trim() || userMessage.length > 8000) {
+      return res.status(400).json({ error: "A message of 1–8000 characters is required" });
+    }
+    if (!process.env.ANTHROPIC_API_KEY) {
+      return res.status(503).json({ error: "AI service is not configured" });
+    }
     const userProfile = req.body?.userProfile || {};
 
     const response = await axios.post(
@@ -167,6 +171,7 @@ ${userMessage}
         ]
       },
       {
+        timeout: 30000,
         headers: {
           "Content-Type": "application/json",
           "x-api-key": process.env.ANTHROPIC_API_KEY,
@@ -176,15 +181,13 @@ ${userMessage}
     );
 
     res.json({
-      reply: response.data.content[0].text
+      reply: response.data.content.find(item => item.type === "text")?.text || "No text response received. Please try again."
     });
 
   } catch (err) {
-    console.log("FULL ERROR:", err.response?.data || err.message);
-
-    res.status(500).json({
-      error: "API error",
-      details: err.response?.data || err.message
+    console.error("AI request failed", { status: err.response?.status, code: err.code });
+    res.status(err.code === "ECONNABORTED" ? 504 : 502).json({
+      error: "AI service temporarily unavailable. Please try again."
     });
   }
 });
