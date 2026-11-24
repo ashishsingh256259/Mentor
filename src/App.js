@@ -1,11 +1,18 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { auth } from "./firebase";
-import { GoogleAuthProvider, signInWithPopup, createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "firebase/auth";
+import { GoogleAuthProvider, signInWithPopup, createUserWithEmailAndPassword, signInWithEmailAndPassword, sendEmailVerification, onAuthStateChanged, signOut } from "firebase/auth";
 import { useNavigate, Routes, Route } from "react-router-dom";
 
 // Set API base from env or fallback
 const API = process.env.REACT_APP_API_URL || "https://mentor-w7xg.onrender.com";
+
+async function authenticatedProfileFetch(url, options) {
+  const user = auth.currentUser;
+  if (!user) throw new Error("Sign in required");
+  const token = await user.getIdToken();
+  return fetch(url, { ...options, headers: { ...options.headers, Authorization: `Bearer ${token}` } });
+}
 
 
 // ─── GLOBAL CSS ──────────────────────────────────────────────────────────────
@@ -180,7 +187,7 @@ html, body { background: var(--bg); color: var(--text); font-family: var(--font-
 const FREE_LIMIT = 5;
 const PLANS = {
   free: { name: "Free", features: ["5 AI mentor messages/day", "Basic roadmap", "3 projects", "Basic assessment"] },
-  pro: { name: "Pro", price: "₹499/mo", features: ["Unlimited AI mentor", "Personalized skill-gap roadmap", "AI project evaluation", "Portfolio + resume gen", "Job matching engine", "Priority mentor access", "Daily challenges + streak", "Skill proof badges", "Auto task system"] }
+  pro: { name: "Pro", price: "₹499/mo", features: ["Up to 100 AI requests/day", "Personalized skill-gap roadmap", "AI project evaluation", "Portfolio + resume gen", "Job matching engine", "Priority mentor access", "Daily challenges + streak", "Skill proof badges", "Auto task system"] }
 };
 
 // ─── MULTI-FIELD TRENDING ROLES ──────────────────────────────────────────────
@@ -563,13 +570,13 @@ async function askClaude(messages, userProfile = {}, systemPrompt = "", maxToken
         career: userProfile?.targetRole?.title || ""
       }
     };
-    const res = await fetch(`${API}/api/chat`, {
+    const res = await authenticatedProfileFetch(`${API}/api/chat`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
     const data = await res.json();
-    return data.reply || data.message || data.content?.[0]?.text || "Sorry, I couldn't respond right now.";
+    return data.reply || data.error || data.message || "Sorry, I couldn't respond right now.";
   } catch {
     return "Connection error. Please try again.";
   }
@@ -2219,7 +2226,7 @@ function PageResources({ user, selectedCareerPath }) {
           career: role?.title || ""
         }
       };
-      const res = await fetch(`${API}/api/chat`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      const res = await authenticatedProfileFetch(`${API}/api/chat`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
       const data = await res.json();
       const text = data.reply || data.message || data.content?.[0]?.text || "[]";
       setAiPicks(JSON.parse(text.replace(/```json|```/g, "").trim()));
@@ -2298,80 +2305,7 @@ function PageMentors({ user, plan, onUpgrade, selectedCareerPath }) {
   const relevant = MENTORS.filter(m => m.specialFor.includes(role.id));
   const others = MENTORS.filter(m => !m.specialFor.includes(role.id));
 
-  const loadRazorpayScript = () => {
-    return new Promise((resolve) => {
-      const script = document.createElement("script");
-      script.src = "https://checkout.razorpay.com/v1/checkout.js";
-      script.onload = () => resolve(true);
-      script.onerror = () => resolve(false);
-      document.body.appendChild(script);
-    });
-  };
-
-  async function handlePayment(mentor) {
-    const res = await loadRazorpayScript();
-    if (!res) {
-      alert("Razorpay SDK failed to load. Are you online?");
-      return;
-    }
-
-    try {
-      const orderRes = await fetch(`${API}/api/payment/create-order`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ amount: mentor.price_per_session }),
-      });
-      const orderData = await orderRes.json();
-
-      if (!orderData || !orderData.id) {
-        alert("Server error. Please try again.");
-        return;
-      }
-
-      const options = {
-        key: process.env.REACT_APP_RAZORPAY_KEY_ID || "rzp_test_Sl9uDXg6wWwLjb",
-        amount: orderData.amount,
-        currency: orderData.currency,
-        name: "Forge Mentor Session",
-        description: `Booking with ${mentor.name}`,
-        order_id: orderData.id,
-        handler: async function (response) {
-          try {
-            const verifyRes = await fetch(`${API}/api/payment/verify`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                razorpay_order_id: response.razorpay_order_id,
-                razorpay_payment_id: response.razorpay_payment_id,
-                razorpay_signature: response.razorpay_signature,
-              }),
-            });
-            const verifyData = await verifyRes.json();
-            if (verifyData.success) {
-              alert(`Payment Successful! Session booked with ${mentor.name}.`);
-            } else {
-              alert("Payment verification failed!");
-            }
-          } catch (err) {
-            console.error("Verification error", err);
-          }
-        },
-        prefill: {
-          name: user?.name || "",
-          email: user?.email || "",
-          contact: "9999999999"
-        },
-        theme: {
-          color: "#8B5CF6"
-        }
-      };
-
-      const paymentObject = new window.Razorpay(options);
-      paymentObject.open();
-    } catch (err) {
-      alert("Something went wrong!");
-    }
-  }
+  function handlePayment() { alert("Mentor profiles are illustrative. Real session booking is not available yet."); }
 
   function MentorCard({ mentor }) {
     return (
@@ -2456,7 +2390,7 @@ function PagePricing({ plan, onUpgrade }) {
           </div>
         ))}
       </div>
-      <div style={{ marginTop: 24, fontSize: 12, color: "var(--text3)" }}>Cancel anytime · ₹499/month after 7-day free trial</div>
+      <div style={{ marginTop: 24, fontSize: 12, color: "var(--text3)" }}>₹499 for 30 days · No automatic renewal</div>
     </div>
   );
 }
@@ -2466,7 +2400,7 @@ function ChatBot({ user, plan, onClose, selectedCareerPath }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const [msgCount, setMsgCount] = useState(0);
+
   const chatRef = useRef(null);
   const role = selectedCareerPath || user.targetRole;
   const skillGaps = calcSkillGap(user, selectedCareerPath).filter(s => !s.has).map(s => s.skill);
@@ -2512,15 +2446,12 @@ YOUR PERSONA & RULES:
 
   async function send() {
     if (!input.trim() || loading) return;
-    if (plan !== "pro" && msgCount >= FREE_LIMIT) {
-      setMessages(m => [...m, { role: "assistant", content: "🔒 You've hit the 5 message/day limit on the Free plan. Upgrade to Pro for unlimited AI mentor access!" }]);
-      return;
-    }
+
     const userMsg = { role: "user", content: input };
     setMessages(m => [...m, userMsg]);
     setInput("");
     setLoading(true);
-    setMsgCount(c => c + 1);
+
     const history = [...messages, userMsg].map(m => ({ role: m.role, content: m.content }));
     const reply = await askClaude(history, user, systemPrompt);
     setMessages(m => [...m, { role: "assistant", content: reply }]);
@@ -2546,7 +2477,7 @@ YOUR PERSONA & RULES:
             </div>
           </div>
           <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-            {plan !== "pro" && <span style={{ fontSize: 12, color: "var(--text3)" }}>{msgCount}/{FREE_LIMIT} messages</span>}
+            {plan !== "pro" && <span style={{ fontSize: 12, color: "var(--text3)" }}>{FREE_LIMIT} AI requests/day</span>}
             <button onClick={onClose} style={{ background: "none", border: "none", color: "var(--text3)", cursor: "pointer", fontSize: 22 }}>✕</button>
           </div>
         </div>
@@ -2581,6 +2512,25 @@ YOUR PERSONA & RULES:
 
 // ─── UPGRADE MODAL ────────────────────────────────────────────────────────────
 function UpgradeModal({ onClose, onUpgrade }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  async function checkout() {
+    setBusy(true); setError("");
+    try {
+      const res = await authenticatedProfileFetch(`${API}/api/pro/order`, { method: "POST" });
+      const order = await res.json();
+      if (!res.ok) throw new Error(order.error || "Checkout unavailable");
+      if (!window.Razorpay) await new Promise((resolve, reject) => { const script = document.createElement("script"); script.src = "https://checkout.razorpay.com/v1/checkout.js"; script.onload = resolve; script.onerror = reject; document.body.appendChild(script); });
+      new window.Razorpay({ key: order.key, amount: order.amount, currency: order.currency, order_id: order.id, name: "FORGE Pro — 30 days", modal: { ondismiss: () => setBusy(false) }, handler: async (payment) => {
+        try {
+          const verified = await authenticatedProfileFetch(`${API}/api/pro/verify`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payment) });
+          const result = await verified.json();
+          if (!verified.ok || !result.success || result.plan !== "pro") throw new Error(result.error || "Payment verification pending");
+          onUpgrade(); onClose();
+        } catch (err) { setError(err.message); } finally { setBusy(false); }
+      } }).open();
+    } catch (err) { setError(err.message || "Checkout failed"); setBusy(false); }
+  }
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.88)", zIndex: 2000, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
       <div style={{ width: "100%", maxWidth: 480, background: "var(--bg)", borderRadius: 24, border: "2px solid rgba(139,92,246,0.4)", padding: "40px 36px", animation: "fadeUp 0.3s ease", position: "relative", overflow: "hidden" }}>
@@ -2599,8 +2549,9 @@ function UpgradeModal({ onClose, onUpgrade }) {
           ))}
         </div>
         <div style={{ display: "flex", gap: 10, flexDirection: "column" }}>
-          <button className="btn-pro" style={{ width: "100%", padding: "15px", fontSize: 16 }} onClick={() => { onUpgrade(); onClose(); }}>Start 7-Day Free Trial →</button>
-          <div style={{ fontSize: 12, color: "var(--text3)", textAlign: "center" }}>₹499/month after trial · Cancel anytime</div>
+          <button className="btn-pro" style={{ width: "100%", padding: "15px", fontSize: 16 }} disabled={busy} onClick={checkout}>{busy ? "Processing…" : "Buy 30 days of Pro →"}</button>
+          <div style={{ fontSize: 12, color: "var(--text3)", textAlign: "center" }}>₹499 for 30 days · No automatic renewal</div>
+          {error && <p role="alert">{error}</p>}
         </div>
       </div>
     </div>
@@ -2631,7 +2582,7 @@ function PageAuth({ onAuthSuccess, onIndustryAuthSuccess }) {
 
       // Save user to MongoDB
       try {
-        const res = await fetch(`${API}/api/save-user`, {
+        const res = await authenticatedProfileFetch(`${API}/api/save-user`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -2734,11 +2685,17 @@ function PageAuth({ onAuthSuccess, onIndustryAuthSuccess }) {
       }
 
       const firebaseUser = userCredential.user;
+      if (!firebaseUser.emailVerified) {
+        if (!isLogin) await sendEmailVerification(firebaseUser);
+        await signOut(auth);
+        alert("Verify your email before signing in. Check your inbox.");
+        return;
+      }
 
       // Save user to MongoDB securely
       if (userType === "student") {
         try {
-          const res = await fetch(`${API}/api/save-user`, {
+          const res = await authenticatedProfileFetch(`${API}/api/save-user`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -3553,6 +3510,12 @@ export default function App() {
   const [chatOpen, setChatOpen] = useState(false);
   const [plan, setPlan] = useState("free");
   const [showUpgrade, setShowUpgrade] = useState(false);
+  useEffect(() => {
+    let active = true;
+    setPlan("free");
+    if (user?.email && auth.currentUser) authenticatedProfileFetch(`${API}/api/plan`, {}).then(r => r.json()).then(d => { if (active && d.plan === "pro") setPlan("pro"); }).catch(() => {});
+    return () => { active = false; };
+  }, [user?.email]);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
@@ -3569,9 +3532,14 @@ export default function App() {
         return;
       }
 
+      if (firebaseUser && !firebaseUser.emailVerified) {
+        setAuthLoading(false);
+        setView("auth");
+        return;
+      }
       if (firebaseUser) {
         try {
-          const res = await fetch(`${API}/api/save-user`, {
+          const res = await authenticatedProfileFetch(`${API}/api/save-user`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -3606,7 +3574,8 @@ export default function App() {
         } catch (err) {
           console.error("Failed to fetch user from DB", err);
           setIsAuthenticated(true);
-          const savedProfile = localStorage.getItem("forge_user_profile");
+          const cached = localStorage.getItem("forge_user_profile");
+          const savedProfile = cached && JSON.parse(cached).email === firebaseUser.email ? cached : null;
           
           if (savedProfile && JSON.parse(savedProfile).targetRole) {
             const parsed = JSON.parse(savedProfile);
@@ -3671,7 +3640,7 @@ export default function App() {
     setView("app");
 
     try {
-      await fetch(`${API}/api/save-user`, {
+      await authenticatedProfileFetch(`${API}/api/save-user`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -3690,7 +3659,8 @@ export default function App() {
     signOut(auth).then(() => {
       localStorage.removeItem("forge_jwt");
       localStorage.removeItem("forgeUser");
-      // Intentionally NOT removing "forge_user_profile" to prevent onboarding loop on next login
+      localStorage.removeItem("forge_user_profile");
+      setPlan("free");
       setIsAuthenticated(false);
       setUser(null);
       setSelectedCareerPath(null);

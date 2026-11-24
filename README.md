@@ -1,70 +1,26 @@
-# Getting Started with Create React App
+# FORGE — AI Career Mentor
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+A React career-development prototype with Firebase authentication, an Express/MongoDB backend and server-side AI requests. The student experience includes career selection, skill-gap guidance, assessments and AI-assisted learning.
 
-## Available Scripts
+## Local setup
 
-In the project directory, you can run:
+Node.js 22 recommended. Install with `npm ci` in the root and `npm install` in `backend`. Run `node server.js` in backend, then `npm start` in root.
 
-### `npm start`
+Set frontend `REACT_APP_API_URL` to the backend URL. Backend environment variables:
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+- MONGO_URI
+- FIREBASE_WEB_API_KEY (same Firebase project as src/firebase.js)
+- ANTHROPIC_API_KEY
+- RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET (test credentials first)
+- ENABLE_PRO_CHECKOUT=false (default; only enable after integration testing)
+- PORT (optional)
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+Never commit private keys or database credentials. Email/password accounts must verify their email.
 
-### `npm test`
+## Plans and billing
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+Free: 5 AI requests/day. Pro: 100/day. All AI tools share the UTC daily quota. Pro costs INR 499 for 30 days with no automatic renewal; server-owned orders and captured payments are verified before access is granted. Quotas count attempted provider requests, including failed upstream requests. Mentor profiles, industry portal and job listings remain demonstration features; mentor payments are disabled. Do not offer real paid services until those workflows and advertised benefits have been validated.
 
-### `npm run build`
+## Verification
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
-
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
-
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
-
-### `npm run eject`
-
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
-
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
-
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
-
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
-
-## Learn More
-
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
-
-To learn React, check out the [React documentation](https://reactjs.org/).
-
-### Code Splitting
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
-
-### Analyzing the Bundle Size
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
-
-### Making a Progressive Web App
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
-
-### Advanced Configuration
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
-
-### Deployment
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
-
-### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+Run `node --test backend/tests/*.test.cjs` and `npm run build`. CI checks syntax, billing policy and frontend build. Before production: verify Firebase sign-up/login, cross-account access, quota concurrency, MongoDB indexes, Razorpay test checkout and retry/refund/reconciliation flows; configure CORS and monitoring. The prototype is not a production billing service yet.

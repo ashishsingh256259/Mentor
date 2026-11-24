@@ -1,0 +1,10 @@
+const test = require("node:test");
+const assert = require("node:assert/strict");
+const crypto = require("node:crypto");
+const { PRO_PRICE, validSignature, validPayment, dailyLimit, dayKey } = require("../billing");
+const secret = "test-secret";
+const sig = crypto.createHmac("sha256", secret).update("order_1|pay_1").digest("hex");
+test("valid signature", () => assert.equal(validSignature("order_1","pay_1",sig,secret),true));
+test("invalid signatures and order substitutions", () => { for (const bad of ["", "bad", null, "0".repeat(64)]) assert.equal(validSignature("order_1","pay_1",bad,secret),false); assert.equal(validSignature("order_2","pay_1",sig,secret),false); });
+test("captured exact-price payment only", () => {const order={orderId:"order_1",amount:PRO_PRICE}; const payment={order_id:"order_1",amount:49900,currency:"INR",status:"captured"}; assert.equal(validPayment(payment,order),true); for(const change of [{amount:1},{currency:"USD"},{status:"authorized"},{order_id:"other"}]) assert.equal(validPayment({...payment,...change},order),false);});
+test("daily plan limits and UTC reset", () => {assert.equal(dailyLimit(false),5);assert.equal(dailyLimit(true),100);assert.equal(dayKey("uid",new Date("2026-11-25T00:00:00Z")),"uid:2026-11-25");});

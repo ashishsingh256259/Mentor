@@ -22,15 +22,19 @@ mongoose.connect(process.env.MONGO_URI)
   .catch(err => console.log("Mongo Error ❌", err));
 
 const User = require("./models/User");
+const requireFirebase = require("./middleware/requireFirebase");
+const ProOrder = require("./models/ProOrder");
+const AIUsage = require("./models/AIUsage");
+const { PRO_PRICE, DAY, validSignature, validPayment, dailyLimit, dayKey } = require("./billing");
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: "64kb" }));
 
 // Initialize Razorpay instance
-const razorpay = new Razorpay({
+const razorpay = process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET ? new Razorpay({
   key_id: process.env.RAZORPAY_KEY_ID,
   key_secret: process.env.RAZORPAY_KEY_SECRET
-});
+}) : null;
 
 // TEST ROUTE
 app.get("/", (req, res) => {
@@ -38,9 +42,10 @@ app.get("/", (req, res) => {
 });
 
 // SAVE USER ROUTE
-app.post("/api/save-user", async (req, res) => {
+app.post("/api/save-user", requireFirebase, async (req, res) => {
   try {
-    const { name, email, photo, role, onboardingCompleted, preferences } = req.body;
+    const { name, photo, onboardingCompleted, preferences } = req.body;
+    const email = req.identity.email;
 
     if (!name || !email) {
       return res.status(400).json({ success: false, error: "Name and email are required" });
@@ -78,7 +83,7 @@ app.post("/api/save-user", async (req, res) => {
       name,
       email,
       photo,
-      role: role || "student",
+      role: "student",
       onboardingCompleted: onboardingCompleted || false,
       preferences: preferences || {}
     });
@@ -94,56 +99,59 @@ app.post("/api/save-user", async (req, res) => {
     console.error("Save User Error:", error);
     return res.status(500).json({
       success: false,
-      error: error.message
+      error: "Unable to save profile"
     });
   }
 });
 
-// RAZORPAY: Create Order
-app.post("/api/create-order", async (req, res) => {
-  try {
-    const { amount, currency = "INR", receipt } = req.body;
-    if (!amount || amount < 100) {
-      return res.status(400).json({ error: "Amount must be at least 100 paise (₹1)" });
-    }
-    const options = {
-      amount: Math.floor(amount), // amount in paise
-      currency,
-      receipt: receipt || `rcpt_${Date.now()}`
-    };
-    const order = await razorpay.orders.create(options);
-    res.json({ order_id: order.id, amount: order.amount, currency: order.currency });
-  } catch (err) {
-    if (err.statusCode === 401) {
-      return res.status(401).json({ error: "Razorpay authentication failed" });
-    }
-    console.error("Razorpay Order Error:", err);
-    res.status(500).json({ error: "Failed to create order", details: err.error || err.message });
-  }
+// Pro access is derived only from captured, verified orders belonging to this Firebase UID.
+async function proActive(uid) {
+  return !!await ProOrder.exists({ uid, expiresAt: { $gt: new Date() }, paymentId: { $exists: true } });
+}
+app.get("/api/plan", requireFirebase, async (req, res) => {
+  res.json({ plan: await proActive(req.identity.uid) ? "pro" : "free" });
 });
-
-// RAZORPAY: Verify Payment Signature
-app.post("/api/verify-payment", (req, res) => {
-  const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
-  if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
-    return res.status(400).json({ error: "Missing required fields" });
-  }
-  const hmac = crypto.createHmac("sha256", process.env.RAZORPAY_KEY_SECRET);
-  hmac.update(razorpay_order_id + "|" + razorpay_payment_id);
-  const generatedSignature = hmac.digest("hex");
-  if (generatedSignature === razorpay_signature) {
-    return res.json({ success: true, message: "Payment verified" });
-  } else {
-    return res.status(400).json({ success: false, error: "Signature mismatch" });
-  }
+// Mentor catalogue is currently a demo, so never collect money for unverified sessions.
+app.post(["/api/create-order", "/api/verify-payment", "/api/payment/create-order", "/api/payment/verify"], (req, res) => res.status(503).json({ error: "Mentor booking payments are not available in this demo" }));
+app.post("/api/pro/order", requireFirebase, async (req, res) => {
+  if (process.env.ENABLE_PRO_CHECKOUT !== "true" || !razorpay) return res.status(503).json({ error: "Pro checkout is not enabled" });
+  if (await proActive(req.identity.uid)) return res.status(409).json({ error: "Your Pro access is already active" });
+  const order = await razorpay.orders.create({ amount: PRO_PRICE, currency: "INR", receipt: crypto.randomUUID() });
+  await ProOrder.create({ orderId: order.id, uid: req.identity.uid, amount: PRO_PRICE });
+  res.json({ id: order.id, amount: PRO_PRICE, currency: "INR", key: process.env.RAZORPAY_KEY_ID });
+});
+app.post("/api/pro/verify", requireFirebase, async (req, res) => {
+  if (!razorpay) return res.status(503).json({ error: "Payment verification unavailable" });
+  const { razorpay_order_id: orderId, razorpay_payment_id: paymentId, razorpay_signature: signature } = req.body || {};
+  if (!validSignature(orderId, paymentId, signature, process.env.RAZORPAY_KEY_SECRET)) return res.status(400).json({ error: "Invalid payment signature" });
+  const order = await ProOrder.findOne({ orderId, uid: req.identity.uid });
+  if (!order) return res.status(404).json({ error: "Order not found" });
+  if (order.paymentId) return res.status(order.paymentId === paymentId ? 200 : 409).json({ success: order.paymentId === paymentId, plan: await proActive(req.identity.uid) ? "pro" : "free" });
+  const payment = await razorpay.payments.fetch(paymentId);
+  if (!validPayment(payment, order)) return res.status(409).json({ error: "Payment is not captured for the required amount" });
+  const paidAt = Number(payment.created_at) * 1000;
+  if (!Number.isFinite(paidAt) || paidAt <= 0 || paidAt > Date.now()) return res.status(409).json({ error: "Invalid payment date" });
+  const expiresAt = new Date(paidAt + 30 * DAY);
+  await ProOrder.updateOne({ _id: order._id, paymentId: { $exists: false } }, { $set: { paymentId, expiresAt } });
+  res.json({ success: true, plan: await proActive(req.identity.uid) ? "pro" : "free" });
 });
 
 // MAIN CHAT ROUTE
-app.post("/api/chat", async (req, res) => {
+app.post("/api/chat", requireFirebase, async (req, res) => {
   try {
-    console.log("BODY:", req.body);
-
-    const userMessage = req.body?.messages?.[0]?.content || "Hello";
+    const userMessage = Array.isArray(req.body?.messages) ? req.body.messages.at(-1)?.content : null;
+    if (typeof userMessage !== "string" || !userMessage.trim() || userMessage.length > 8000) {
+      return res.status(400).json({ error: "A message of 1–8000 characters is required" });
+    }
+    if (!process.env.ANTHROPIC_API_KEY) {
+      return res.status(503).json({ error: "AI service is not configured" });
+    }
+    const uid = req.identity.uid;
+    const limit = dailyLimit(await proActive(uid));
+    const key = dayKey(uid);
+    await AIUsage.updateOne({ _id: key }, { $setOnInsert: { count: 0, expiresAt: new Date(Date.now() + 2 * DAY) } }, { upsert: true });
+    const reserved = await AIUsage.updateOne({ _id: key, count: { $lt: limit } }, { $inc: { count: 1 } });
+    if (!reserved.modifiedCount) return res.status(429).json({ error: "Daily AI limit reached. Try again tomorrow (UTC)." });
     const userProfile = req.body?.userProfile || {};
 
     const response = await axios.post(
@@ -167,6 +175,7 @@ ${userMessage}
         ]
       },
       {
+        timeout: 30000,
         headers: {
           "Content-Type": "application/json",
           "x-api-key": process.env.ANTHROPIC_API_KEY,
@@ -176,17 +185,20 @@ ${userMessage}
     );
 
     res.json({
-      reply: response.data.content[0].text
+      reply: response.data.content.find(item => item.type === "text")?.text || "No text response received. Please try again."
     });
 
   } catch (err) {
-    console.log("FULL ERROR:", err.response?.data || err.message);
-
-    res.status(500).json({
-      error: "API error",
-      details: err.response?.data || err.message
+    console.error("AI request failed", { status: err.response?.status, code: err.code });
+    res.status(err.code === "ECONNABORTED" ? 504 : 502).json({
+      error: "AI service temporarily unavailable. Please try again."
     });
   }
+});
+app.use((err, req, res, next) => {
+  console.error("Request failed", { code: err.code, status: err.status });
+  if (res.headersSent) return next(err);
+  res.status(err.status === 413 ? 413 : err.status === 400 ? 400 : 503).json({ error: "Request could not be completed" });
 });
 const PORT = process.env.PORT || 5000;
 
