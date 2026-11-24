@@ -1,7 +1,7 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { auth } from "./firebase";
-import { GoogleAuthProvider, signInWithPopup, createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "firebase/auth";
+import { GoogleAuthProvider, signInWithPopup, createUserWithEmailAndPassword, signInWithEmailAndPassword, sendEmailVerification, onAuthStateChanged, signOut } from "firebase/auth";
 import { useNavigate, Routes, Route } from "react-router-dom";
 
 // Set API base from env or fallback
@@ -2685,6 +2685,12 @@ function PageAuth({ onAuthSuccess, onIndustryAuthSuccess }) {
       }
 
       const firebaseUser = userCredential.user;
+      if (!firebaseUser.emailVerified) {
+        if (!isLogin) await sendEmailVerification(firebaseUser);
+        await signOut(auth);
+        alert("Verify your email before signing in. Check your inbox.");
+        return;
+      }
 
       // Save user to MongoDB securely
       if (userType === "student") {
@@ -3526,6 +3532,11 @@ export default function App() {
         return;
       }
 
+      if (firebaseUser && !firebaseUser.emailVerified) {
+        setAuthLoading(false);
+        setView("auth");
+        return;
+      }
       if (firebaseUser) {
         try {
           const res = await authenticatedProfileFetch(`${API}/api/save-user`, {
@@ -3563,7 +3574,8 @@ export default function App() {
         } catch (err) {
           console.error("Failed to fetch user from DB", err);
           setIsAuthenticated(true);
-          const savedProfile = localStorage.getItem("forge_user_profile");
+          const cached = localStorage.getItem("forge_user_profile");
+          const savedProfile = cached && JSON.parse(cached).email === firebaseUser.email ? cached : null;
           
           if (savedProfile && JSON.parse(savedProfile).targetRole) {
             const parsed = JSON.parse(savedProfile);
