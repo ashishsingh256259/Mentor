@@ -7,6 +7,13 @@ import { useNavigate, Routes, Route } from "react-router-dom";
 // Set API base from env or fallback
 const API = process.env.REACT_APP_API_URL || "https://mentor-w7xg.onrender.com";
 
+async function authenticatedProfileFetch(url, options) {
+  const user = auth.currentUser;
+  if (!user) throw new Error("Sign in required");
+  const token = await user.getIdToken();
+  return fetch(url, { ...options, headers: { ...options.headers, Authorization: `Bearer ${token}` } });
+}
+
 
 // ─── GLOBAL CSS ──────────────────────────────────────────────────────────────
 
@@ -2631,7 +2638,7 @@ function PageAuth({ onAuthSuccess, onIndustryAuthSuccess }) {
 
       // Save user to MongoDB
       try {
-        const res = await fetch(`${API}/api/save-user`, {
+        const res = await authenticatedProfileFetch(`${API}/api/save-user`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -2738,7 +2745,7 @@ function PageAuth({ onAuthSuccess, onIndustryAuthSuccess }) {
       // Save user to MongoDB securely
       if (userType === "student") {
         try {
-          const res = await fetch(`${API}/api/save-user`, {
+          const res = await authenticatedProfileFetch(`${API}/api/save-user`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -3571,7 +3578,7 @@ export default function App() {
 
       if (firebaseUser) {
         try {
-          const res = await fetch(`${API}/api/save-user`, {
+          const res = await authenticatedProfileFetch(`${API}/api/save-user`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -3671,7 +3678,7 @@ export default function App() {
     setView("app");
 
     try {
-      await fetch(`${API}/api/save-user`, {
+      await authenticatedProfileFetch(`${API}/api/save-user`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
